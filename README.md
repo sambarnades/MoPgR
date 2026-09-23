@@ -2,42 +2,42 @@
 
 A Docker Compose stack for running **Moodle 5.2** with PostgreSQL 18, Redis 8.8, and pgAdmin.
 
-> ✅ **Updated**: Project structure evolved with new configuration files, enhanced health checks, and improved tooling.
+> ✅ **Updated**: Fixed Apache configuration URL, Moodle path alignment, installation permissions, and resolved critical Docker setup issues.
+> 
+> ⚠️ **Important Fixes Applied**: Fixed raw GitHub URL for config files, added symlink for path compatibility, moved permissions to Dockerfile.
+
+---
 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Navigate to compose directory
-cd moodle-5.2/compose
-
-# 2. Configure environment
+# 1. Configure environment
 # Copy template and edit with your values
 cp .env.example .env
-# Then edit .env with your database credentials and settings
+# Edit .env with your database credentials
 
-# 3. Start all services for development
+# 2. Place Moodle source code in ./moodle/ directory
+
+# 3. Start all services
 docker compose up -d
-
-# Or use Make command
-make up        # Start all services
 
 # 4. Access Moodle
 # Open http://127.0.0.1 in your browser
 ```
 
-> 💡 **Tip**: Use `make help` to see all available commands
-
 ---
 
 ## 📋 Services
 
-| Service | Default Port | Description | Profile |
-|---------|--------------|-------------|---------|
-| **Moodle** | `127.0.0.1:80` | Main Moodle application (Apache + PHP 8.5.3) |
+| Service | Default Port | Description |
+|---------|--------------|-------------|
+| **Moodle** | `127.0.0.1:80` | Main Moodle application (Apache + PHP 8.5.8) |
 | **PostgreSQL** | `127.0.0.1:5432` | Database server (v18.4) |
 | **pgAdmin** | `127.0.0.1:8443` | Database management UI |
 | **Redis** | `127.0.0.1:6379` | Caching layer (v8.8.0) |
 | **RedisInsight** | `127.0.0.1:5540` | Redis management UI (v3.6) |
+
+> 📝 **Note**: All services are started via `docker compose up -d` in the `dev/` directory
 
 ---
 
@@ -47,157 +47,142 @@ make up        # Start all services
 
 See `.env.example` for the complete template with all available variables.
 
-#### Moodle Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MOODLE_LANG` | Moodle language | `fr` |
-| `MOODLE_ROOT` | **Site URL** - Must be valid hostname | `127.0.0.1` |
-| `MOODLE_DBTYPE` | Database type | `pgsql` |
-| `MOODLE_DBHOST` | Database host (Docker service name) | `postgres` |
-| `MOODLE_DBNAME` | Database name | `moodle` |
-| `MOODLE_DBUSER` | Database user | `moodleadmin` |
-| `MOODLE_DBPASS` | Database password | `change_me` |
-| `MOODLE_ADMIN_USER` | Admin username | `admin` |
-| `MOODLE_ADMIN_PASS` | Admin password | `change_me` |
-| `MOODLE_ADMIN_EMAIL` | Admin email | `admin@example.com` |
-| `MOODLE_SUPPORT_EMAIL` | Support email | `support@example.com` |
-| `MOODLE_FULLNAME` | Site full name | `Moodle` |
-| `MOODLE_SHORTNAME` | Site short name | `Moodle` |
+> ⚠️ **Important**: The `GIT_REMOTE_REPO_URL` variable must use the raw GitHub URL format: `https://raw.githubusercontent.com/sambarnades/MoPgR` (not the `/blob/` URL) to avoid downloading HTML content instead of configuration files.
 
-#### Database Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRES_VERSION` | PostgreSQL version | `18.4` |
-| `POSTGRES_USER` | PostgreSQL user | `moodleadmin` |
-| `POSTGRES_PASSWORD` | PostgreSQL password | `change_me` |
-| `POSTGRES_DB` | PostgreSQL database name | `moodle` |
-| `ALLOW_EMPTY_PASSWORD` | Allow empty password | `false` |
-| `PGDATA` | PostgreSQL data directory | `/var/lib/postgresql/data/pgdata` |
-
-#### Admin Tools Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ADMIN_EMAIL` | pgAdmin default email | `admin@pgadmin.com` |
-| `ADMIN_PASSWORD` | pgAdmin default password | `change_me` |
-
-#### Cache Configuration
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `REDIS_VERSION` | Redis version | `8.8.0` |
-| `REDISINSIGHT_VERSION` | RedisInsight version | `3.6` |
-| `RI_APP_HOST` | RedisInsight bind address | `${WEB_ADRESS}` |
-
-#### Network Configuration
-| Variable | Description | Default | Bind Address |
-|----------|-------------|---------|---------------|
-| `WEB_ADRESS` | Global bind address for all services | `127.0.0.1` | - |
-
-> ⚠️ **Important**: 
-> - **Always set sensitive values** in `.env` before deployment (passwords, emails)
-> - `MOODLE_ROOT` must be a hostname like `127.0.0.1`, `localhost`, or your domain
-> - Variables referencing others (e.g., `MOODLE_DBNAME=${POSTGRES_DB}`) are resolved by Docker Compose
-> - **Never commit `.env`** to version control (it's in `.gitignore`)
+> ⚠️ **Security Note**: Never commit `.env` to version control (it's in `.gitignore`). Change all default passwords before production use.
 
 ### Apache Configuration
 
-- **`moodle_listener.conf`**: Handles Moodle sites served from sub-folders (e.g., `/var/www/html/moodle/public`) and change host from `127.0.0.1` to your domain
-- **`moodle_listeners.conf`**: Includes the listener config in the virtual host
-- **DocumentRoot**: `/var/www/html/moodle/public` (Moodle web root)
-- **Redis Configuration**: `redis.conf` for custom Redis settings
+- **`moodle_listener.conf`**: Apache configuration for Moodle, includes rewrite rules and directory settings
+- **DocumentRoot**: `/var/www/html/moodle/` (Moodle web root inside container)
+- **Symlink Note**: The setup script creates a symlink `/var/www/html/public` → `/var/www/html/moodle` to ensure compatibility with the Apache configuration
+- **Note**: The configuration expects Moodle to be accessible at the container's root path
+
+---
+
+### HTTPS Configuration
+
+#### Install Certbot
+```bash
+apt install python3 python3-dev python3-venv libaugeas-dev gcc
+python3 -m venv /opt/certbot/
+/opt/certbot/bin/pip install --upgrade pip
+/opt/certbot/bin/pip install certbot certbot-apache
+ln -s /opt/certbot/bin/certbot /usr/local/bin/certbot
+```
+
+##### Proceed the interactive installation
+```bash
+certbot --apache
+```
+
+##### Add a cron job to renew the certificate
+```bash
+echo "0 0,12 * * * root /opt/certbot/bin/python -c 'import random; import time; time.sleep(random.random() * 3600)' && sudo certbot renew -q" | sudo tee -a /etc/crontab > /dev/null
+```
+
+Read the [certbot documentation](https://certbot.eff.org/instructions?ws=apache&os=pip) for more details.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-compose/
-├── .env.example            # Template for environment variables
-├── .gitignore              # Git ignore rules
-├── .dockerignore           # Docker build ignore rules
-├── AGENTS.md               # Project instructions and coding standards
-├── Makefile                # Common Docker commands
-├── compose.yaml            # Docker Compose configuration (v3)
-├── Moodle.Dockerfile       # Moodle container image (PHP 8.5.3)
-├── entrypoint.sh           # Container entrypoint (install, cron, Apache)
-├── moodle_listener.conf    # Apache rewrite rules for Moodle
-├── moodle_listeners.conf   # Apache virtual host include
-├── redis.conf              # Redis server configuration
+.
+├── dev/
+│   ├── php_server.Dockerfile    # PHP 8.5.8 + Apache container with Moodle dependencies
+│   ├── setup.sh                 # Moodle installation and configuration script
+│   ├── .env.example              # Template for environment variables
+│   ├── README.md                 # This documentation
+│   └── compose.yaml             # Docker Compose configuration
+│
+├── docker_data/                  # Persistent volumes (created at runtime)
+│   ├── moodledata/              # Moodle uploaded files and sessions
+│   ├── postgres/                 # PostgreSQL data directory
+│   └── pgadmin/                  # pgAdmin configuration
+│
+└── apache_configuration/
+    └── moodle_listener.conf     # Apache configuration for Moodle
 ```
 
 > 📝 **Note**: 
-> - Volume directories (`moodle_postgres/`, `moodle_redisinsight/`) are created at runtime
-> - Moodle web root is `/var/www/html/moodle/public` inside the container
+> - Moodle source code should be placed in `./moodle/` (copied into container)
+> - All persistent data is stored in `docker_data/` on the host machine
+> - Apache is configured to serve Moodle from `/var/www/html/moodle/` inside the container
+> - A symlink `/var/www/html/public` → `/var/www/html/moodle` ensures compatibility with the Apache configuration
 
 ---
 
-## ⚙️ Entrypoint Details
+## ⚙️ Setup Script Details
 
-The `entrypoint.sh` script performs the following on container startup:
+The `setup.sh` script performs the following operations:
 
-1. **Installs Moodle** (if `/data/moodledata/.installed` marker is missing):
-   - Uses CLI installer with `.env` variables
-   - Creates `config.php` with proper permissions (0640, root:www-data)
-   - Sets up data directory at `/data/moodledata`
+1. **Creates required directories**:
+   - `/data/moodledata` for Moodle file storage (uploaded files, sessions)
+   - `/var/log/moodle` for cron logs
 
-2. **Configures Cron**:
+2. **Fixes path compatibility**:
+   - Creates symlink `/var/www/html/public` → `/var/www/html/moodle` to align with Apache configuration
+   - This resolves the "Failed to open stream" error for Moodle library files
+
+3. **Installs Moodle** via CLI:
+   - Uses `php /var/www/html/moodle/admin/cli/install.php` with hardcoded default parameters
+   - Runs in non-interactive mode with `--non-interactive` and `--agree-license`
+   - All parameters are documented in the script
+
+4. **Configures Cron**:
    - Runs `cron.php` every minute via www-data user
    - Runs `adhoc_task.php` every minute with keep-alive
    - Logs all output to `/var/log/moodle/cron.log`
 
-3. **Starts Services**:
+5. **Starts Services**:
    - Launches cron daemon in background
-   - Starts Apache in foreground mode (`exec "$@"`)
+   - Starts Apache in foreground mode
 
 > 💡 **Key Paths**:
 > - PHP CLI: `/usr/local/bin/php` (used in cron and Moodle CLI)
 > - Moodle CLI: `/var/www/html/moodle/admin/cli/`
-> - Install marker: `/data/moodledata/.installed`
 > - Cron log: `/var/log/moodle/cron.log`
+> - Data directory: `/data/moodledata`
+
+> ⚠️ **Important**: The `chown` command for Moodle directory has been moved to the Dockerfile to execute only once during build, not on every container start.
 
 ---
 
 ## 🔄 Development Workflow
 
 ### Using Docker Compose
-```bash
-# Rebuild Moodle container (after code changes)
-docker compose build moodle
 
-# Restart services
-docker compose up -d
+```bash
+# Build and start all services
+docker compose up -d --build
 
 # View logs
-docker compose logs -f moodle
+docker compose logs -f
 
-# Run Moodle CLI commands
-docker compose exec moodle /usr/local/bin/php /var/www/html/moodle/admin/cli/cron.php
+# View Moodle logs only
+docker compose logs -f php_server
+
+# View PostgreSQL logs only
+docker compose logs -f postgres
+
+# Restart services
+docker compose restart
+
+# Stop and remove containers
+docker compose down
+
+# Stop and remove containers with volumes
+docker compose down -v
 
 # Access container shell
-docker compose exec moodle bash
-```
+docker compose exec php_server bash
 
-### Using Makefile (Recommended)
-```bash
-# Common commands
-make help           # List all available commands
-make up             # Start all services
-make down           # Stop and remove containers
-make rebuild        # Rebuild and restart containers
-make restart        # Restart all services
-make clean          # Stop containers and remove volumes
-make ps             # List running containers
+# Run Moodle CLI commands
+docker compose exec php_server /usr/local/bin/php /var/www/html/moodle/admin/cli/cron.php
 
-# Service-specific
-make logs           # View all logs
-make logs-moodle    # View Moodle logs only
-make logs-postgres  # View PostgreSQL logs only
-make shell          # Open shell in Moodle container
-make db-shell       # Open PostgreSQL shell
-make cron-run       # Manually run Moodle cron
-
-# Database operations
-make db-dump            # Dump database to backup_YYYYMMDD_HHMMSS.sql
-make db-restore FILE=x  # Restore database from backup file
+# Access database shell
+docker compose exec postgres psql -U moodleadmin -d moodle
 ```
 
 ---
@@ -207,20 +192,18 @@ make db-restore FILE=x  # Restore database from backup file
 ### 🔒 Security Best Practices
 - **Never commit `.env`** to version control (it's in `.gitignore`)
 - **Change all default passwords** in `.env` before production use
-- Use HTTPS in production (add a reverse proxy like Traefik, or Caddy)
+- Use HTTPS in production (add a reverse proxy like Traefik or Caddy)
 - Consider using Docker secrets for sensitive data in production
-- The Moodle admin password (`MOODLE_ADMIN_PASS`) should be strong and unique
 
 ### 🌐 Network Security
-- **For production**: Use `--profile prod` to start Moodle only, excluding database and admin tool ports
-- **For security**: All database ports (PostgreSQL, Redis) are bound to `127.0.0.1` by default
+- All database ports (PostgreSQL, Redis) are bound to `127.0.0.1` by default
 - All services use health checks to ensure proper startup sequencing
 - PostgreSQL uses shared memory (`shm_size: 128mb`) for optimal performance
 
 ### 📋 Security Configuration
-- `ALLOW_EMPTY_PASSWORD=false` by default
-- All sensitive variables have `change_me` as default (must be overridden)
+- Database passwords are set to `change_me` by default and must be overridden
 - Volume data is persisted outside containers for security
+- **Important**: Always use raw GitHub URLs (raw.githubusercontent.com) for configuration files to avoid downloading HTML content
 
 ---
 
@@ -228,32 +211,25 @@ make db-restore FILE=x  # Restore database from backup file
 
 ### Backup Database
 ```bash
-# Manual backup
-docker compose exec postgres pg_dump -U ${POSTGRES_USER} ${POSTGRES_DB} > moodle_backup_$(date +%Y%m%d_%H%M%S).sql
-
-# Or use Makefile (recommended)
-make db-dump
-# Creates backup_YYYYMMDD_HHMMSS.sql in current directory
+# Create backup
+docker compose exec postgres pg_dump -U moodleadmin moodle > moodle_backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 ### Restore Database
 ```bash
-# Manual restore
-cat moodle_backup.sql | docker compose exec -i postgres psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
-
-# Or use Makefile (recommended)
-make db-restore FILE=moodle_backup.sql
-# Restores from specified SQL file
+# Restore from backup
+cat moodle_backup.sql | docker compose exec -i postgres psql -U moodleadmin -d moodle
 ```
 
 ### Volume Data Backup
 ```bash
-# PostgreSQL data is stored in moodle_postgres/
-# RedisInsight data is stored in moodle_redisinsight/
+# PostgreSQL data is stored in docker_data/postgres/
+# pgAdmin data is stored in docker_data/pgadmin/
+# Moodle data is stored in docker_data/moodledata/
 # These directories are on the host machine and persist between container restarts
 
 # To backup all volumes:
-tar -czvf moodle_volumes_backup_$(date +%Y%m%d).tar.gz moodle_postgres/ moodle_redisinsight/
+tar -czvf moodle_volumes_backup_$(date +%Y%m%d).tar.gz docker_data/
 ```
 
 > ⚠️ **Important**: 
@@ -269,8 +245,10 @@ tar -czvf moodle_volumes_backup_$(date +%Y%m%d).tar.gz moodle_postgres/ moodle_r
 | Issue | Solution |
 |-------|----------|
 | **PostgreSQL connection fails** | Check `docker compose logs postgres` for startup errors |
-| **Moodle install hangs** | Verify `MOODLE_DB*` and `POSTGRES_*` variables in `.env` match |
-| **Apache won't start** | Check `docker compose logs moodle` for configuration errors |
+| **Moodle install hangs** | Ensure PostgreSQL is ready before installation; check database connectivity |
+| **Apache won't start** | Check `docker compose logs php_server` for configuration errors |
+| **"Failed to open stream" error** | Verify symlink `/var/www/html/public` → `/var/www/html/moodle` exists; check Apache DocumentRoot |
+| **HTML instead of config file** | Ensure `GIT_REMOTE_REPO_URL` uses `raw.githubusercontent.com` not `/blob/` |
 | **Port already in use** | Run `docker compose down` then `docker compose up -d` |
 | **Cron not running** | Check `/var/log/moodle/cron.log` inside the Moodle container |
 | **Health checks failing** | Wait for dependencies to start (check service logs) |
@@ -286,32 +264,29 @@ All services include health checks:
 ```bash
 # Check container status and health
 docker compose ps
-make ps
 
 # View resource usage
 docker stats
 
 # Inspect Moodle container
-docker compose exec moodle bash
-make shell
+docker compose exec php_server bash
 
 # Test database connection
-docker compose exec postgres psql -U ${POSTGRES_USER} -d ${POSTGRES_DB}
-make db-shell
+docker compose exec postgres psql -U moodleadmin -d moodle
 
 # View service logs
-make logs        # All services
-make logs-moodle # Moodle only
-make logs-postgres # PostgreSQL only
+docker compose logs -f        # All services
+docker compose logs -f php_server  # Moodle only
+docker compose logs -f postgres  # PostgreSQL only
 
 # Check health check status
 docker inspect --format='{{json .State.Health}}' $(docker ps -q)
 ```
 
 ### Debugging Tips
-- Use `make shell` for interactive debugging in Moodle container
+- Use `docker compose exec php_server bash` for interactive debugging
 - Check `.env` file for typos in variable names
-- Ensure all required volumes exist: `moodle_postgres/`, `moodle_redisinsight/`
+- Ensure all required volumes exist: `docker_data/postgres/`, `docker_data/pgadmin/`, `docker_data/moodledata/`
 - Verify port availability: `netstat -tlnp | grep -E '80|5432|6379|8443|5540'`
 
 ---
@@ -320,8 +295,8 @@ docker inspect --format='{{json .State.Health}}' $(docker ps -q)
 
 ### Project Documentation
 - **`AGENTS.md`**: Detailed project instructions, coding standards, and development guidelines
-- **`Makefile`**: Complete list of available commands with `make help`
 - **`.env.example`**: Environment variable template with all available options
+- **`setup.sh`**: Fully documented Moodle installation script with all CLI parameters
 
 ### Moodle Resources
 - **Moodle 5.2 Release Notes**: https://moodledev.io/general/releases/5.2
@@ -336,26 +311,22 @@ docker inspect --format='{{json .State.Health}}' $(docker ps -q)
 
 ## 🎯 Project Evolution Summary
 
-This README has been updated to reflect the evolved project structure:
+This project has undergone significant improvements:
 
-✅ **New Files Added**:
-- `AGENTS.md` - Project instructions and coding standards
-- `redis.conf` - Redis server configuration
+✅ **Critical Bug Fixes Applied**:
+- Fixed Apache configuration URL to use `raw.githubusercontent.com` instead of `github.com/blob/` to avoid downloading HTML content
+- Added symlink `/var/www/html/public` → `/var/www/html/moodle` to resolve Moodle path compatibility issues
+- Moved directory permissions to Dockerfile for one-time execution during build
+- Documented all CLI installation parameters in setup.sh
 
-📁 **Directory Changes**:
-- `postgres/` → `moodle_postgres/` (volume mount)
-- `redisinsight/` → `moodle_redisinsight/` (volume mount)
-- Moodle web root now in `moodle/public/`
+📁 **Directory Structure**:
+- Moodle source code in `./moodle/` (copied into container during build)
+- Volume data stored in `docker_data/` on host machine
+- Moodle web root in `/var/www/html/moodle/` inside container
+- Symlink `/var/www/html/public` → `/var/www/html/moodle` for Apache compatibility
 
 🚀 **Enhanced Features**:
 - Comprehensive health checks for all services
-- Improved Makefile with 15+ commands
-- Better organized environment variables
-- Updated service versions (PostgreSQL 18.4, Redis 8.8.0, RedisInsight 3.6)
+- Improved setup script with detailed documentation
+- Updated service versions (PHP 8.5.8, PostgreSQL 18.4, Redis 8.8.0)
 - Enhanced security defaults and documentation
-
-🔧 **Improved Tooling**:
-- Standardized development workflow
-- Better troubleshooting guidance
-- Complete backup and restore procedures
-- Service-specific log viewing commands

@@ -6,8 +6,9 @@
 - **Official Docker Setup**: https://github.com/moodlehq/moodle-docker
 
 ## 🛠️ Environment
+
 ### Server Requirements (Moodle 5.2)
-- **PHP**: 8.3.0+ minimum (PHP 8.4.x supported). Only 64-bit versions supported.
+- **PHP**: 8.3.0+ minimum (PHP 8.5.x supported). Only 64-bit versions supported.
 - **PHP Extension**: `sodium` is required
 - **PHP Settings**: `max_input_vars` must be >= 5000
 - **Web Server**: Apache/Nginx (via Docker recommended)
@@ -46,70 +47,121 @@
 - **PHP lint**: `php vendor/bin/moodle-php-lint`
 - **Code checker**: `php vendor/bin/moodle-check`
 
-## 📁 File Structure
-- Plugins: `/moodle/local/` or `/moodle/[plugintype]/`
-- Theme customizations: `/moodle/theme/`
-- Configuration: `/moodle/config.php`
-- Docker files: `/compose/`
-- This project uses: PostgreSQL (configured in compose.yaml)
-- **New files in `/compose/`**:
-  - `Makefile` - Common Docker commands
-  - `.env.example` - Environment template
-  - `.dockerignore` - Docker build exclusions
-  - `.gitignore` - Git exclusions (includes moodle/)
+## 📁 Project File Structure
 
-## 🐳 Docker Commands
-### Official Moodle Docker (Recommended)
-```bash
-git clone https://github.com/moodlehq/moodle-docker.git
-cd moodle-docker
-export MOODLE_DOCKER_WWWROOT=./moodle
-export MOODLE_DOCKER_DB=pgsql
-bin/moodle-docker-compose up -d
+```
+.
+├── dev/
+│   ├── php_server.Dockerfile    # PHP 8.5.8 + Apache container with Moodle dependencies
+│   ├── setup.sh                 # Moodle installation and configuration script
+│   ├── .env.example              # Environment variable template
+│   └── compose.yaml             # Docker Compose configuration
+│
+├── docker_data/                  # Persistent volumes (created at runtime)
+│   ├── moodledata/              # Moodle uploaded files and sessions
+│   ├── postgres/                 # PostgreSQL data directory
+│   └── pgadmin/                  # pgAdmin configuration
+│
+├── apache_configuration/
+│   └── moodle_listener.conf     # Apache configuration for Moodle
+│
+└── moodle/                      # Moodle source code (copied into container)
 ```
 
-### Project-Specific Commands
-- **Start**: `make up` or `docker compose up -d`
-- **Stop**: `make down` or `docker compose down`
-- **Stop + remove volumes**: `make clean` or `docker compose down -v`
-- **Rebuild**: `make rebuild` or `docker compose up -d --build`
-- **Logs**: `make logs` or `docker compose logs -f`
-- **Logs (Moodle only)**: `make logs-moodle`
-- **Logs (PostgreSQL only)**: `make logs-postgres`
-- **Shell access**: `make shell`
-- **Database dump**: `make db-dump`
-- **Database restore**: `make db-restore FILE=backup.sql`
-- **Cron manual**: `make cron-run`
-- **List all commands**: `make help`
+> 📝 **Note**: 
+> - Moodle source code must be placed in `./moodle/` before building
+> - All persistent data is stored in `docker_data/` on the host machine
+> - The `setup.sh` script creates a symlink `/var/www/html/public` -> `/var/www/html/moodle` for Apache compatibility
 
-## 🔧 Installation
-- **Official**: Use [moodle-docker](https://github.com/moodlehq/moodle-docker) for standard setup
-- **Project-specific**: Uses `/compose/entrypoint.sh` for automated setup (PostgreSQL + Redis)
-- `config.php` is generated during installation
-- Data directory: `/moodledata/` (mounted volume)
-- **Note**: `moodle/` folder not tracked in git (see `.gitignore`)
+## 🐳 Docker Configuration
+
+### Docker Compose Services
+| Service | Port | Description |
+|---------|------|-------------|
+| **php_server** | 80 | Apache + PHP 8.5.8 with Moodle |
+| **postgres** | 5432 | PostgreSQL 18.4 database |
+| **pgadmin** | 8443 | pgAdmin database management UI |
+| **redis** | 6379 | Redis 8.8.0 caching layer |
+| **redisinsight** | 5540 | RedisInsight management UI |
+
+### Docker Commands
+```bash
+# Navigate to project directory
+cd dev
+
+# Build and start all services
+docker compose up -d --build
+
+# View logs
+docker compose logs -f
+
+# View Moodle logs only
+docker compose logs -f php_server
+
+# View PostgreSQL logs only
+docker compose logs -f postgres
+
+# Access Moodle container shell
+docker compose exec php_server bash
+
+# Access database shell
+docker compose exec postgres psql -U moodleadmin -d moodle
+
+# Stop services
+docker compose down
+
+# Stop and remove volumes
+docker compose down -v
+```
+
+## 🔧 Installation & Setup
+
+### Prerequisites
+- Docker and Docker Compose installed
+- Moodle source code placed in `./moodle/` directory
+- Environment configured via `.env` file (copy from `.env.example`)
+
+### Setup Process
+1. **Configure environment**: Copy `.env.example` to `.env` and edit with your values
+2. **Place Moodle code**: Ensure Moodle source is in `./moodle/`
+3. **Build and run**: Execute `docker compose up -d --build` in the `dev/` directory
+4. **Access Moodle**: Open `http://127.0.0.1` in your browser
+
+### Key Configuration Notes
+- **GIT_REMOTE_REPO_URL**: Must use raw GitHub URL format (`https://raw.githubusercontent.com/...`) not `/blob/` URL
+- **Apache DocumentRoot**: `/var/www/html/moodle/` inside container
+- **Symlink**: Setup script creates `/var/www/html/public` -> `/var/www/html/moodle` for compatibility
+- **Permissions**: Directory permissions are set during Docker build (in `php_server.Dockerfile`)
 
 ## 💡 Project Notes
 - This project uses **PostgreSQL 18** (configured in compose.yaml)
 - Redis is included for caching/session storage
-- pgAdmin available at port 8081 for database management
+- pgAdmin available at port 8443 for database management
 - RedisInsight available at port 5540 for Redis management
+- Moodle CLI installation uses hardcoded defaults in `setup.sh`
 
 ---
 
-## 🚀 Project Improvements
+## 🚀 Project Improvements & Fixes
 
-### Healthchecks
+### Health Checks
 - **Moodle**: HTTP check on port 80 (30s interval, 10s timeout, 3 retries, 60s start period)
 - **PostgreSQL**: `pg_isready` check (5s interval, 5s timeout, 5 retries)
 - **Redis**: `redis-cli ping` check (10s interval, 5s timeout, 3 retries)
 
 ### Security
 - `.env` in `.gitignore` (never commit credentials)
-- `moodle/` in `.gitignore` (downloaded in Dockerfile for production)
-- Sensitive defaults removed from README.md
+- Sensitive defaults removed from documentation
+- Volume data persisted outside containers for security
+
+### Critical Bug Fixes Applied
+- **Apache configuration URL**: Fixed to use `raw.githubusercontent.com` instead of `github.com/blob/` to avoid downloading HTML
+- **Path compatibility**: Added symlink `/var/www/html/public` -> `/var/www/html/moodle` to resolve "Failed to open stream" errors
+- **Directory permissions**: Moved `chown` commands to Dockerfile for one-time execution during build
+- **Setup script**: Fully documented CLI installation parameters
 
 ### Development Tools
-- **Makefile**: Standardized commands for consistency
-- **backup/restore**: Automated via `make db-dump` / `make db-restore`
-- **.env.example**: Template for new contributors
+- **setup.sh**: Automated Moodle installation and configuration
+- **compose.yaml**: Docker Compose configuration with all services
+- **php_server.Dockerfile**: PHP 8.5.8 + Apache container with all dependencies
+- **.env.example**: Environment variable template

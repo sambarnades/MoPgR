@@ -2,28 +2,15 @@ name: Moodle-Postgres-Redis Network
 networks:
   moodle-network:
 services:
-    moodle:
+    php_server:
+      container_name: php_server_$BRANCH
+      environment:
+        - GIT_REMOTE_REPO_URL=${GIT_REMOTE_REPO_URL}
       build:
         context: .
-        dockerfile: Moodle.Dockerfile
-      ports:
-        - 80:80
-        - 443:443
-      environment:
-        MOODLE_LANG: ${MOODLE_LANG}
-        MOODLE_ROOT: ${MOODLE_ROOT}
-        MOODLE_DBTYPE: ${MOODLE_DBTYPE}
-        MOODLE_DBHOST: ${MOODLE_DBHOST}
-        MOODLE_DBNAME: ${MOODLE_DBNAME}
-        MOODLE_DBUSER: ${MOODLE_DBUSER}
-        MOODLE_DBPASS: ${MOODLE_DBPASS}
-        MOODLE_ADMIN_USER: ${MOODLE_ADMIN_USER}
-        MOODLE_ADMIN_PASS: ${MOODLE_ADMIN_PASS}
-        MOODLE_FULLNAME: ${MOODLE_FULLNAME}
-        MOODLE_SHORTNAME: ${MOODLE_SHORTNAME}
-        MOODLE_ADMIN_EMAIL: ${MOODLE_ADMIN_EMAIL}
-        MOODLE_SUPPORT_EMAIL: ${MOODLE_SUPPORT_EMAIL}
-      # The healthcheck is on port 80, better to test on 443 for https security
+        dockerfile: php_server.Dockerfile
+        args:
+        - GIT_REMOTE_REPO_URL=${GIT_REMOTE_REPO_URL}
       healthcheck:
         test: ["CMD", "curl", "-f", "http://${MOODLE_ROOT}:80/" ]
         interval: 30s
@@ -35,8 +22,9 @@ services:
         postgres:
           condition: service_healthy
       volumes:
-       - ./moodle_data:/data/moodledata
+       - ./docker_data/moodledata:/data/moodledata
     postgres:
+      container_name: postgres_$BRANCH
       image: postgres:${POSTGRES_VERSION}
       restart: always
       # set shared memory limit when using docker compose
@@ -59,29 +47,29 @@ services:
         timeout: 5s
         retries: 5
       volumes:
-        - ./moodle_postgres:/var/lib/postgresql/18/docker
+        - ./docker_data/postgres:/var/lib/postgresql/18/docker
     pgadmin:
+      container_name: pgadmin_$BRANCH
       image: elestio/pgadmin:latest
       restart: always
       environment:
         PGADMIN_DEFAULT_EMAIL: ${ADMIN_EMAIL}
         PGADMIN_DEFAULT_PASSWORD: ${ADMIN_PASSWORD}
         PGADMIN_LISTEN_PORT: 8443
-      ports:
-        - 8443:8443
       depends_on:
         postgres:
           condition: service_healthy
       volumes:
-      - ./servers.json:/pgadmin4/servers.json
+      - ./docker_data/pgadmin/servers.json:/docker_data/pgadmin4/servers.json
     redis:
+      container_name: redis_$BRANCH
       image: redis:${REDIS_VERSION}
       restart: unless-stopped
       environment:
         REDIS_HOST: ${REDIS_HOST}
         REDIS_PORT: ${REDIS_PORT}
         REDIS_USERNAME: ${REDIS_USERNAME}
-        REDIS_SS: ${REDIS_SS}
+        # REDIS_SS: ${REDIS_SS}
         REDIS_CA_PATH: ${REDIS_CA_PATH}
         REDIS_SSL_KEYFILE: ${REDIS_SSL_KEYFILE}
         REDIS_SSL_CERTFILE: ${REDIS_SSL_CERTFILE}
@@ -95,20 +83,19 @@ services:
         timeout: 5s
         retries: 3
       volumes:
-        - ./moodle_redis:/data
+        - ./docker_data/moodle_redis:/docker_data/redis-data
     redisinsight:
+      container_name: redisinsight_$BRANCH
       image: redis/redisinsight:${REDISINSIGHT_VERSION}
       restart: always
       environment:
         RI_APP_PORT: 5540
         RI_APP_HOST: 0.0.0.0
-      ports:
-        - 5540:5540
       volumes:
-        - ./moodle_redisinsight:/db
+        - ./docker_data/moodle_redisinsight:/docker_data/redisinsight-db
 volumes:
-  moodle_data:
-  moodle_postgres:
-  moodle_redis:
-  moodle_redisinsight:
+  docker_moodledata:
+  docker_postgres:
+  docker_redis:
+  docker_redisinsight:
     
