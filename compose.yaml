@@ -1,6 +1,7 @@
 name: Moodle-Postgres-Redis Network
 networks:
   moodle-network:
+    name: MoPgR-network-$BRANCH
 services:
     php_server:
       container_name: php_server_$BRANCH
