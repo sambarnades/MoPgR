@@ -1,5 +1,5 @@
 # Use the official PHP 8.5.3 Apache image as the base
-FROM php:8.5.8-apache
+FROM php:8.5-apache
 
 ARG GIT_REMOTE_REPO_URL=${GIT_REMOTE_REPO_URL}
 
@@ -39,7 +39,7 @@ RUN apt-get update && \
       nano \
       cron && \
     docker-php-ext-configure gd --with-freetype --with-jpeg && \
-    docker-php-ext-install -j$(nproc) zip gd pgsql pdo_pgsql intl soap
+    docker-php-ext-install -j$(nproc) zip gd pgsql pdo_pgsql intl soap exif
 
     # Set PHP settings for Moodle: max_input_vars and OPcache
 RUN echo "max_input_vars=5000" >> /usr/local/etc/php/conf.d/docker-php-moodle.ini && \

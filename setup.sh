@@ -5,7 +5,7 @@ set -x
 # root owns the directory, www-data/Apache group has write access, good for maintenance
 mkdir -p /data/moodledata && \
 chown -R root:www-data /data/moodledata && \
-chmod -R 0770 /data/moodledata
+chmod -R 0775 /data/moodledata
 
 # Configure Apache to use 'localhost' as ServerName
 echo ServerName localhost >> /etc/apache2/apache2.conf
@@ -65,7 +65,11 @@ php /var/www/html/moodle/admin/cli/install.php \
 
   # Set proper permissions for config.php
   chown root:www-data /var/www/html/moodle/config.php
-  chmod 770 /var/www/html/moodle/config.php
+  chmod 775 /var/www/html/moodle/config.php
+
+  # Configure Moodle to indicate that the router is configured
+  echo "\$CFG->routerconfigured = true;" >> /var/www/html/moodle/config.php
+  echo "Moodle router configuration set successfully!"
 
   echo "Moodle installed successfully!"
 
