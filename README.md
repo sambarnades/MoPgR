@@ -132,14 +132,20 @@ The `setup.sh` script runs at every container start (called by `entrypoint.sh`).
    - `/data/moodledata` for Moodle file storage (uploaded files, sessions)
    - `/var/log/moodle` for cron logs
 
-3. **Installs OR upgrades Moodle**:
-   - If `config.php` does NOT exist → first install via `admin/cli/install.php` with the env parameters, then appends `$CFG->routerconfigured = true;` to `config.php`
-   - If `config.php` exists → runs `admin/cli/upgrade.php --non-interactive` (no-op when nothing changed). Restarting or rebuilding a container never reinstalls the platform.
+3. **Generates config.php from environment variables** (at every start):
+   - The file is rebuilt from `MOODLE_WWWROOT`, `MOODLE_DBHOST`, `MOODLE_DBNAME`, `MOODLE_DBUSER`, `MOODLE_DBPASS`, `MOODLE_DBPREFIX`, `MOODLE_DATAROOT`, etc.
+   - This makes container recreation safe: `config.php` lives in the ephemeral container layer, while the database and `moodledata` are persisted as bind mounts
+   - Appends `$CFG->routerconfigured = true;` and, when `MOODLE_SSLPROXY=true`, `$CFG->sslproxy = true;`
+   - Do not edit `config.php` manually: it is overwritten at every container start. Use environment variables.
 
-4. **SSL proxy (conditional)**:
+4. **Installs OR upgrades Moodle**:
+   - Runs `admin/cli/upgrade.php --non-interactive`: succeeds (no-op) when the database is already installed
+   - If it fails (empty database), runs `admin/cli/install_database.php --agree-license` with the admin parameters — the Moodle-blessed CLI for "config.php exists, database not yet set up"
+
+5. **SSL proxy (conditional)**:
    - If `MOODLE_SSLPROXY=true`, appends `$CFG->sslproxy = true;` to `config.php` (for setups behind a TLS-terminating reverse proxy)
 
-5. **Configures Cron**:
+6. **Configures Cron**:
    - Runs `cron.php` every minute via www-data user
    - Runs `adhoc_task.php` every minute with keep-alive
    - Logs all output to `/var/log/moodle/cron.log`
