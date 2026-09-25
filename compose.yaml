@@ -6,13 +6,26 @@ services:
       container_name: php_server_$BRANCH
       environment:
         - GIT_REMOTE_REPO_URL=${GIT_REMOTE_REPO_URL}
+        - MOODLE_WWWROOT=${MOODLE_WWWROOT:-http://127.0.0.1}
+        - MOODLE_LANG=${MOODLE_LANG:-fr}
+        - MOODLE_DBHOST=${MOODLE_DBHOST:-postgres}
+        - MOODLE_DBNAME=${MOODLE_DBNAME:-moodle}
+        - MOODLE_DBUSER=${MOODLE_DBUSER:-moodleadmin}
+        - MOODLE_DBPASS=${MOODLE_DBPASS:-moodlepass}
+        - MOODLE_ADMINUSER=${MOODLE_ADMINUSER:-moodle}
+        - MOODLE_ADMINPASS=${MOODLE_ADMINPASS:-moodlepass}
+        - MOODLE_ADMINEMAIL=${MOODLE_ADMINEMAIL:-admin@moodle.com}
+        - MOODLE_SUPPORTEMAIL=${MOODLE_SUPPORTEMAIL:-support@moodle.com}
+        - MOODLE_FULLNAME=${MOODLE_FULLNAME:-Moodle}
+        - MOODLE_SHORTNAME=${MOODLE_SHORTNAME:-Moodle}
+        - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
       build:
         context: .
         dockerfile: php_server.Dockerfile
         args:
         - GIT_REMOTE_REPO_URL=${GIT_REMOTE_REPO_URL}
       healthcheck:
-        test: ["CMD", "curl", "-f", "http://${MOODLE_ROOT}:80/" ]
+        test: ["CMD", "curl", "-f", "http://127.0.0.1:80/" ]
         interval: 30s
         timeout: 10s
         retries: 3

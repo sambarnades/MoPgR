@@ -22,6 +22,8 @@ COPY ./moodle/ /var/www/html/moodle/
  
 # Copy the setup script into the container
 COPY ./setup.sh /var/www/html/
+COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Install system dependencies required for Moodle and PHP extensions
 RUN apt-get update && \
@@ -58,7 +60,7 @@ RUN echo "max_input_vars=5000" >> /usr/local/etc/php/conf.d/docker-php-moodle.in
 
 # ----------------------------------------------------------- #
 
-CMD ["/usr/local/bin/apache2-foreground"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Expose port 80 for HTTP traffic
 EXPOSE 80
