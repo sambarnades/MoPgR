@@ -14,16 +14,20 @@ A Docker Compose stack for running **Moodle 5.2** with PostgreSQL 18, Redis 8.8,
 # 1. Configure environment
 # Copy template and edit with your values
 cp .env.example .env
-# Edit .env with your database credentials
+# Edit .env with your database credentials and Moodle settings (MOODLE_*)
 
-# 2. Place Moodle source code in ./moodle/ directory
+# 2. Place Moodle source code in ./moodle/ directory (submodule)
+git submodule update --init --recursive moodle
 
 # 3. Start all services
-docker compose up -d
+docker compose up -d --build
 
-# 4. Access Moodle
+# 4. Moodle installs itself automatically on first boot
+# On subsequent boots, the entrypoint runs upgrade.php instead (no reinstall)
 # Open http://127.0.0.1 in your browser
 ```
+
+> The container entrypoint (`entrypoint.sh`) runs `setup.sh` at every start. `setup.sh` is idempotent: if `config.php` already exists it runs Moodle's `upgrade.php` instead of `install.php`, so restarts and rebuilds never reinstall the platform. If an `install_plugins.sh` script is mounted (by an overlay such as ISFEC_Moodle), the entrypoint runs it too.
 
 ---
 
@@ -89,20 +93,22 @@ Read the [certbot documentation](https://certbot.eff.org/instructions?ws=apache&
 
 ```
 .
-├── dev/
-│   ├── php_server.Dockerfile    # PHP 8.5.8 + Apache container with Moodle dependencies
-│   ├── setup.sh                 # Moodle installation and configuration script
-│   ├── .env.example              # Template for environment variables
-│   ├── README.md                 # This documentation
-│   └── compose.yaml             # Docker Compose configuration
+├── php_server.Dockerfile    # PHP 8.5.8 + Apache container with Moodle dependencies (ENTRYPOINT = entrypoint.sh)
+├── setup.sh                 # Moodle install/upgrade script (idempotent, env-driven)
+├── entrypoint.sh            # Container entrypoint: setup.sh + (optional) install_plugins.sh + Apache
+├── .env.example              # Template for environment variables
+├── README.md                 # This documentation
+├── compose.yaml             # Docker Compose configuration
 │
-├── docker_data/                  # Persistent volumes (created at runtime)
-│   ├── moodledata/              # Moodle uploaded files and sessions
-│   ├── postgres/                 # PostgreSQL data directory
-│   └── pgadmin/                  # pgAdmin configuration
+├── apache_configuration/
+│   └── moodle_listener.conf  # Apache configuration for Moodle
 │
-└── apache_configuration/
-    └── moodle_listener.conf     # Apache configuration for Moodle
+├── moodle/                   # Moodle source code (submodule, copied into container)
+│
+└── docker_data/              # Persistent volumes (created at runtime)
+    ├── moodledata/           # Moodle uploaded files and sessions
+    ├── postgres/              # PostgreSQL data directory
+    └── pgadmin/               # pgAdmin configuration
 ```
 
 > 📝 **Note**: 
@@ -115,29 +121,28 @@ Read the [certbot documentation](https://certbot.eff.org/instructions?ws=apache&
 
 ## ⚙️ Setup Script Details
 
-The `setup.sh` script performs the following operations:
+The `setup.sh` script runs at every container start (called by `entrypoint.sh`). It is **idempotent** and **environment-driven**:
 
-1. **Creates required directories**:
+1. **Reads configuration from environment variables** (all with defaults):
+   - `MOODLE_WWWROOT` (default `http://127.0.0.1`), `MOODLE_LANG`, `MOODLE_ADMINUSER`, `MOODLE_ADMINPASS`, `MOODLE_ADMINEMAIL`, `MOODLE_SUPPORTEMAIL`, `MOODLE_FULLNAME`, `MOODLE_SHORTNAME`
+   - `MOODLE_DBHOST`, `MOODLE_DBNAME`, `MOODLE_DBUSER`, `MOODLE_DBPASS`
+   - `MOODLE_SSLPROXY` (default `false`)
+
+2. **Creates required directories**:
    - `/data/moodledata` for Moodle file storage (uploaded files, sessions)
    - `/var/log/moodle` for cron logs
 
-2. **Fixes path compatibility**:
-   - Creates symlink `/var/www/html/public` → `/var/www/html/moodle` to align with Apache configuration
-   - This resolves the "Failed to open stream" error for Moodle library files
+3. **Installs OR upgrades Moodle**:
+   - If `config.php` does NOT exist → first install via `admin/cli/install.php` with the env parameters, then appends `$CFG->routerconfigured = true;` to `config.php`
+   - If `config.php` exists → runs `admin/cli/upgrade.php --non-interactive` (no-op when nothing changed). Restarting or rebuilding a container never reinstalls the platform.
 
-3. **Installs Moodle** via CLI:
-   - Uses `php /var/www/html/moodle/admin/cli/install.php` with hardcoded default parameters
-   - Runs in non-interactive mode with `--non-interactive` and `--agree-license`
-   - All parameters are documented in the script
+4. **SSL proxy (conditional)**:
+   - If `MOODLE_SSLPROXY=true`, appends `$CFG->sslproxy = true;` to `config.php` (for setups behind a TLS-terminating reverse proxy)
 
-4. **Configures Cron**:
+5. **Configures Cron**:
    - Runs `cron.php` every minute via www-data user
    - Runs `adhoc_task.php` every minute with keep-alive
    - Logs all output to `/var/log/moodle/cron.log`
-
-5. **Starts Services**:
-   - Launches cron daemon in background
-   - Starts Apache in foreground mode
 
 > 💡 **Key Paths**:
 > - PHP CLI: `/usr/local/bin/php` (used in cron and Moodle CLI)
@@ -146,6 +151,8 @@ The `setup.sh` script performs the following operations:
 > - Data directory: `/data/moodledata`
 
 > ⚠️ **Important**: The `chown` command for Moodle directory has been moved to the Dockerfile to execute only once during build, not on every container start.
+
+> 🔌 **Overlay integration**: an overlay repo can mount its own `/var/www/html/install_plugins.sh` (and a lock file). The entrypoint detects it and runs it after setup — this is how custom plugin layers integrate without touching MoPgR.
 
 ---
 
