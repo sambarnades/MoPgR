@@ -8,10 +8,13 @@ services:
         - GIT_REMOTE_REPO_URL=${GIT_REMOTE_REPO_URL}
         - MOODLE_WWWROOT=${MOODLE_WWWROOT:-http://127.0.0.1}
         - MOODLE_LANG=${MOODLE_LANG:-fr}
+        - MOODLE_DATAROOT=${MOODLE_DATAROOT:-/data/moodledata}
+        - MOODLE_DBTYPE=${MOODLE_DBTYPE:-pgsql}
         - MOODLE_DBHOST=${MOODLE_DBHOST:-postgres}
         - MOODLE_DBNAME=${MOODLE_DBNAME:-moodle}
         - MOODLE_DBUSER=${MOODLE_DBUSER:-moodleadmin}
         - MOODLE_DBPASS=${MOODLE_DBPASS:-moodlepass}
+        - MOODLE_DBPREFIX=${MOODLE_DBPREFIX:-mdl_}
         - MOODLE_ADMINUSER=${MOODLE_ADMINUSER:-moodle}
         - MOODLE_ADMINPASS=${MOODLE_ADMINPASS:-moodlepass}
         - MOODLE_ADMINEMAIL=${MOODLE_ADMINEMAIL:-admin@moodle.com}
